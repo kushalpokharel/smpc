@@ -1,0 +1,10 @@
+[package]
+name = "smpc-server"
+version = "0.1.0"
+edition = "2024"
+authors = ["Kushal Pokharel kupokh@iu.edu"]
+
+[dependencies]
+actix = "0.13.5"
+actix-web = "4.11.0"
+anyhow = "1.0.98"

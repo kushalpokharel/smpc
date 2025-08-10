@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "shared",
+    "smpc-client",
+    "smpc-server",
+]
+
