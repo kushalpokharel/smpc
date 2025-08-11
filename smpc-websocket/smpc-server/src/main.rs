@@ -1,5 +1,6 @@
 mod actor;
 mod handlers;
+mod errors;
 
 use actor::server_actor::ServerActor;
 use actix::prelude::*;

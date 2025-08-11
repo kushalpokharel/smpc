@@ -5,3 +5,7 @@ use actix::prelude::*;
 pub struct RegisterClient{
     pub url: String,
 }
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct InitializeParameters;
