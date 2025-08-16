@@ -1,6 +1,7 @@
 use actix::prelude::*;
 use actix_codec::Framed;
 use awc::{ws::Codec, BoxedSocket};
+use kzen_paillier::BigInt;
 use serde::{Serialize, Deserialize};
 
 use crate::errors::server_error::ServerError;
@@ -15,11 +16,6 @@ pub struct RegisterClient{
 #[rtype(result = "()")]
 pub struct InitializeParameters;
 
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct WebsocketInitResult(
-    pub Vec<(u32, Framed<BoxedSocket, Codec>)>
-);
 
 /// Websocket messages
 
@@ -80,4 +76,9 @@ impl<T> BroadcastMessage<T> {
   pub fn into_inner(self) -> T {
     self.data
   }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct InitializeProtocol {
+    pub bits_security: usize,
 }

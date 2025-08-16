@@ -7,6 +7,7 @@ authors = ["Kushal Pokharel kupokh@iu.edu"]
 [dependencies]
 actix = "0.13.5"
 actix-codec = "0.5.2"
+actix-http = "3.11.0"
 actix-web = "4.11.0"
 anyhow = "1.0.98"
 awc = "3.7.0"
