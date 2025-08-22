@@ -88,14 +88,14 @@ impl ServerActor{
 
     #[inline]
     fn write_raw(&mut self, client_index: usize, message: Message) {
-        eprintln!("Sending message to collector {}: {:?} ", client_index + 1, message);
+        eprintln!("Sending message to client {}: {:?} ", client_index + 1, message);
 
         // Get the sink, trapping any out of bound errors (Should NOT happen)
         if let Some(ref mut sinks) = self.sinks{
             let sink = sinks.get_mut(client_index);
             if sink.is_none() {
                 return eprintln!(
-                "Invalid collector {} (Num Collectors = {})",
+                "Invalid collector {} (Num client = {})",
                 client_index + 1,
                 self.total_clients
                 );
@@ -193,9 +193,10 @@ impl Handler<RegisterClient> for ServerActor {
         self.clients.insert(self.total_clients, msg.url.clone());
         println!("Registered client {} with URL: {}", self.total_clients, msg.url);
         
-        if self.total_clients >= 1 && self.state == State::ClientConnection {
+        if self.total_clients == 1 && self.state == State::ClientConnection {
+            println!("Here i am");
             //schedule a task to send a message to the first client after 120 seconds
-            ctx.run_later(std::time::Duration::from_secs(10), |act, ctx|{
+            ctx.run_later(std::time::Duration::from_secs(30), |act, ctx|{
                 println!("Sending InitializeParameters message to start the protocol.");
                 act.schedule_send(ctx, 0);
             });

@@ -11,7 +11,7 @@ pub async fn connect_websocket(
     
     println!("{}", url);
     addr.try_send(RegisterClient{
-        url: url.to_string(),
+        url: url.to_string()+ "/connect",
     }).map_err(|e| {
         eprintln!("Failed to register client: {}", e);
         actix_web::error::ErrorInternalServerError("Failed to register client")

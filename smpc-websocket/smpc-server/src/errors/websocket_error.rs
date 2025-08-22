@@ -15,11 +15,12 @@ pub enum WebsocketError {
 
 impl WebsocketError{
     pub async fn connect(request: WebsocketsRequest) -> Result<Framed<BoxedSocket, Codec>, Self> {
+        println!("WebSocket connection request established with response:");
+
         let (response, frame) = request
         .connect()
         .await
         .map_err(|e| WebsocketError::ClientError(e))?;
-        
         if response.status() == StatusCode::SWITCHING_PROTOCOLS {
             Ok(frame)
         }else{
