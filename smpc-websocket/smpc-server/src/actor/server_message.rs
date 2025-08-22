@@ -78,7 +78,7 @@ impl<T> BroadcastMessage<T> {
   }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct InitializeProtocol {
-    pub bits_security: usize,
-}
+// #[derive(Serialize, Deserialize)]
+// pub struct InitializeProtocol {
+//     pub bits_security: usize,
+// }

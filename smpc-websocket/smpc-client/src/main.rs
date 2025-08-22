@@ -2,10 +2,13 @@
 mod handlers;
 mod actor;
 
+
 use actix_web::{web, App, HttpServer};
 use handlers::connect_server::connect_to_server;
 use anyhow;
 use handlers::websocket::websocket;
+
+use crate::actor::consts::SETUP;
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
@@ -14,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/", web::get().to(connect_to_server))
             .route("/connect", web::get().to(websocket))
     });
-    client_server.bind("localhost:8082")?
+    client_server.bind(format!("localhost:{}",SETUP.port))?
         .run()
         .await?;
     Ok(())

@@ -1,24 +1,44 @@
 use kzen_paillier::BigInt;
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use actix::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WebsocketMessage {
     InitializeProtocol(InitializeProtocol),
     FirstRoundResponse(UnicastMessage<FirstRoundResponse>),
+    SecondRoundResponse(UnicastMessage<SecondRoundResponse>),
     Broadcast(BroadcastMessage<String>),
     Relayer(RelayerMessage<String>),
 }
 
+// Sent from server to the first  client to initialize the protocol. the sid will always be 0 in this msg type.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InitializeProtocol{
     pub bits_security: usize,
+    pub num_parties: usize,
+    pub sid: usize,
+}
+
+// Sent from one cient to other clients. Every client will add 1 to its sid and send it to the next client. Server just relays this message.
+// Every client will check if it is the last client in the protocol by checking if its sid is equal to num_parties - 1.
+// If it is the last client, it will send the SecondRoundResponse message to the server.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FirstRoundResponse{
+    pub computed_value: BigInt,
+    pub num_parties: usize,
+    pub sid: usize,
+    // used to get the publick key of the first  
+    pub n_squared: BigInt,
+    pub n: BigInt,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct FirstRoundResponse{
-    pub computed_value: String,
-    pub n_squared: BigInt
+pub struct SecondRoundResponse{
+    pub computed_value: BigInt,
+    pub n_squared: BigInt,
+    pub num_parties: usize,
+    pub sid: usize,
+    pub n: BigInt,
 }
 
 

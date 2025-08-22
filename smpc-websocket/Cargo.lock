@@ -2063,6 +2063,7 @@ dependencies = [
  "actix",
  "kzen-paillier",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2112,6 +2113,7 @@ dependencies = [
  "actix-web-actors",
  "anyhow",
  "awc",
+ "curv-kzen",
  "kzen-paillier",
  "serde",
  "serde_json",
@@ -2132,6 +2134,7 @@ dependencies = [
  "kzen-paillier",
  "serde",
  "serde_json",
+ "shared",
 ]
 
 [[package]]

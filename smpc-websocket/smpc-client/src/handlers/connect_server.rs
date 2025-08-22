@@ -1,9 +1,11 @@
+use std::fmt::format;
 use std::str::FromStr;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use awc::{ClientBuilder};
 use actix_http::header::{HeaderName, HeaderValue};
 use actix_http::Method;
+use crate::actor::consts::SETUP;
 
 
 
@@ -19,7 +21,7 @@ pub async fn connect_to_server(
         //         actix_web::error::ErrorInternalServerError("Failed to connect to server")
         //     })?;
         let header_name = HeaderName::from_str("Origin");
-        let header_value = HeaderValue::from_str("ws://localhost:8082");
+        let header_value = HeaderValue::from_str(format!("ws://localhost:{}", SETUP.port).as_str());
 
        let _resp = ClientBuilder::new()
             .add_default_header((header_name.unwrap(), header_value.unwrap()))

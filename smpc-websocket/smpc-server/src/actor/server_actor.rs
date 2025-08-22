@@ -1,6 +1,6 @@
 use std::arch::aarch64::uint32x4_t;
 use std::collections::HashMap;
-use crate::actor::server_message::{BroadcastMessage, InitializeParameters, InitializeProtocol, RegisterClient, UnicastMessage};
+use crate::actor::server_message::{BroadcastMessage, InitializeParameters, RegisterClient, UnicastMessage};
 use crate::errors::error_close::ErrorClose;
 
 use actix_codec::Framed;
@@ -20,6 +20,7 @@ use kzen_paillier::{KeyGeneration, Paillier};
 use awc::{BoxedSocket, Client};
 use crate::errors::websocket_error::WebsocketError;
 use crate::errors::server_error::ServerError;
+use shared::types::{WebsocketMessage, InitializeProtocol};
 
 #[derive(PartialEq)]
 enum State{
@@ -58,6 +59,30 @@ impl ServerActor{
             state: State::ClientConnection,
             key_pair: None,
             sinks:None
+        }
+    }
+
+    pub fn handle_websocket_message(&mut self, msg: WebsocketMessage, client_index: usize, ctx: &mut <Self as Actor>::Context) {
+        match msg {
+            WebsocketMessage::InitializeProtocol(init) => {
+                // Start the protocol by sending an initialization message or any other setup
+                println!("Client never sends initialize protocol message");
+            }
+            WebsocketMessage::FirstRoundResponse(response) => {
+                // Handle the first round response
+                println!("Received FirstRoundResponse from client {}: {:?}", client_index, response);
+                self.send_json(&response, response.to, ctx);
+                // Process the response as needed
+            }
+            WebsocketMessage::SecondRoundResponse(response) => {
+                // Handle the first round response
+                println!("Received SecondRound from client {}: {:?}", client_index, response);
+                self.send_json(&response, response.to, ctx);
+                // Process the response as needed
+            }
+            _ => {
+                eprintln!("Received unexpected message type: {:?}", msg);
+            }
         }
     }
 
@@ -258,6 +283,9 @@ impl Handler<InitializeParameters> for ServerActor {
 
                             let client_params: InitializeProtocol = InitializeProtocol{
                                 bits_security: 2048,
+                                num_parties: act.total_clients as usize,
+                                sid: 0
+
                             };
 
                             act.send_json(&client_params, 0, ctx);
@@ -286,7 +314,14 @@ impl StreamHandler<(u32, Result<Frame, WsProtocolError>)> for ServerActor{
                     Frame::Text(text) => {
                         println!("Text frame from client {}: {}", id, String::from_utf8_lossy(&text));
                         // Process text frame
-
+                        let msg = match serde_json::from_slice::<WebsocketMessage>(&text){
+                            Ok(message) => message,
+                            Err(e) => {
+                                println!("Failed to parse message: {}", e);
+                                return;
+                            }
+                        };
+                        self.handle_websocket_message(msg, id as usize, ctx);
                     }
                     Frame::Binary(data) => {
                         println!("Binary frame from client {}: {:?}", id, data);
