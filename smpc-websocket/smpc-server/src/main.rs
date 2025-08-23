@@ -6,6 +6,7 @@ use actor::server_actor::ServerActor;
 use actix::prelude::*;
 use actix_web::{web, App, HttpServer};
 use anyhow;
+mod test;
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()>{

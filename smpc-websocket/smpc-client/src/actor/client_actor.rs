@@ -4,7 +4,7 @@ use actix::{Actor, StreamHandler};
 use actix_web_actors::ws;
 use actix::ActorContext;
 use kzen_paillier::*;
-use shared::types::{FirstRoundResponse, InitializeProtocol, SecondRoundResponse, UnicastMessage, WebsocketMessage};
+use shared::types::{ClientMessage, FirstRoundResponse, InitializeProtocol, SecondRoundResponse, UnicastMessage, WebsocketMessage};
 use crate::actor::consts::SETUP;
 use curv::arithmetic::{BigInt, Modulo};
 use shared::utils::{EncodedCiphertextRepr, get_bigint_from_encoded_ciphertext};
@@ -27,7 +27,13 @@ impl ClientActor{
     }
 
     pub fn send_unicast<T>(&self, from: usize, to: usize, data: T, ctx: &mut ws::WebsocketContext<Self>) where T: serde::Serialize {
-        let msg = UnicastMessage::new(from, to, data);
+        let data_value = serde_json::to_value(data).unwrap_or_else(|e| {
+            eprintln!("Failed to convert UnicastMessage to value: {}", e);
+            serde_json::Value::Null
+        });
+        let uni_msg = UnicastMessage::new(from, to, data_value);
+
+        let msg: WebsocketMessage = WebsocketMessage::Unicast(uni_msg);
         let json_str = serde_json::to_string(&msg).unwrap_or_else(|e| {
             eprintln!("Failed to serialize message: {}", e);
             "".to_string()
@@ -51,34 +57,46 @@ impl ClientActor{
         let kp = Paillier::keypair_with_modulus_size(num_bits).keys();
         self.decryption_key = Some(kp.1.clone());
         let start_value =  SETUP.private_input;
+        println!("Private input chosen, {}", start_value);
         let encrypted_value = Paillier::encrypt(&kp.0, start_value);
         let encrypted_value_bigint = get_bigint_from_encoded_ciphertext(&encrypted_value);
         
-        let new_msg = FirstRoundResponse{
-            computed_value: encrypted_value_bigint,
-            num_parties: init.num_parties,
-            sid: init.sid + 1,
-            n_squared:kp.0.nn,
-            n: kp.0.n
-        };
-        self.send_unicast(init.sid, init.sid+1, new_msg, ctx);
+        if init.sid == init.num_parties - 2 {
+            // if this is the second last client, send the SecondRoundResponse to the last client
+            let new_msg = SecondRoundResponse{
+                computed_value: encrypted_value_bigint,
+                num_parties: init.num_parties,
+                sid: init.sid + 1,
+                n_squared: kp.0.nn,
+                n: kp.0.n
+            };
+            self.send_unicast(init.sid, init.sid + 1, ClientMessage::SecondRoundResponse(new_msg), ctx);
+
+        }
+        else{
+            let new_msg = FirstRoundResponse{
+                computed_value: encrypted_value_bigint,
+                num_parties: init.num_parties,
+                sid: init.sid + 1,
+                n_squared:kp.0.nn,
+                n: kp.0.n
+            };
+            self.send_unicast(init.sid, init.sid+1, ClientMessage::FirstRoundResponse(new_msg), ctx);
+
+        }
+        
         
     }
 
-    pub fn second_round_response(&self, response: UnicastMessage<SecondRoundResponse>, ctx: &mut ws::WebsocketContext<Self>) {
+    pub fn second_round_response(&self, response: SecondRoundResponse, ctx: &mut ws::WebsocketContext<Self>) {
         // Handle the second round response
-        let to = response.to;
-        let data = response.into_inner();
+        let data = response;
         let resp = data.computed_value;
         println!("Received second round response: {:?}", resp);
-
+        
         // if this the first client, decrypt the final result and print it
         if data.sid == 0 {
             if let Some(dec_key) = &self.decryption_key {
-                let enc_key = EncryptionKey {
-                    n: data.n.clone(),
-                    nn: data.n_squared.clone(),
-                };
                 let rct = RawCiphertext::from(resp);
                 let decrypted_result = Paillier::decrypt(dec_key, &rct);
                 println!("Final decrypted result: {}", decrypted_result.0.into_owned());
@@ -92,6 +110,8 @@ impl ClientActor{
             nn: data.n_squared.clone(),
         };
         let ct = Paillier::encrypt(&enc_key, SETUP.random_value);
+        println!("Random value chosen, {}", SETUP.random_value);
+
         let ct_raw = get_bigint_from_encoded_ciphertext(&ct);
         BigInt::mod_inv(&ct_raw, &enc_key.n)
             .map(|inv| {
@@ -104,20 +124,21 @@ impl ClientActor{
                     sid: data.sid - 1,
                     n: enc_key.n,
                 };
-                self.send_unicast(to, to-1, new_response, ctx);
+                self.send_unicast(data.sid, data.sid-1, ClientMessage::SecondRoundResponse(new_response), ctx);
             }).unwrap_or_else(|| {
                 eprintln!("Failed to compute modular inverse");
             });
     }
 
-    pub fn first_round_response(&self, response: UnicastMessage<FirstRoundResponse>, ctx: &mut ws::WebsocketContext<Self>) {
+    pub fn first_round_response(&self, response: FirstRoundResponse, ctx: &mut ws::WebsocketContext<Self>) {
         // Handle the first round response
         println!("Received first round response: {:?}", response);
         // get the computed value from the response and raise it to the power of 
-        let to = response.to;
-        let data = response.into_inner();
+        let data = response;
         let computed_value = data.computed_value;
         let new_ct = BigInt::mod_pow(&computed_value, &BigInt::from(SETUP.private_input), &data.n_squared);
+        println!("Private input chosen, {}", SETUP.private_input);
+
         if data.sid == data.num_parties - 2 {
             // if this is the second last client, send the SecondRoundResponse to the last client
             let new_msg = SecondRoundResponse{
@@ -127,7 +148,7 @@ impl ClientActor{
                 n_squared: data.n_squared,
                 n: data.n
             };
-            self.send_unicast(to, to + 1, new_msg, ctx);
+            self.send_unicast(data.sid, data.sid + 1, ClientMessage::SecondRoundResponse(new_msg), ctx);
 
         }
         else{
@@ -138,7 +159,7 @@ impl ClientActor{
                 n_squared: data.n_squared,
                 n: data.n
             };
-            self.send_unicast(to, to + 1, new_msg, ctx);
+            self.send_unicast(data.sid, data.sid + 1, ClientMessage::FirstRoundResponse(new_msg), ctx);
         }
           
     }
@@ -149,7 +170,7 @@ impl StreamHandler<Result<actix_http::ws::Message, ws::ProtocolError>> for Clien
         match msg {
             Ok(actix_http::ws::Message::Text(text)) => {
                 println!("Received text message: {}", text);
-                let msg = match serde_json::from_str::<WebsocketMessage>(&text){
+                let msg = match serde_json::from_str::<ClientMessage>(&text){
                     Ok(message) => message,
                     Err(e) => {
                         println!("Failed to parse message: {}", e);
@@ -159,14 +180,14 @@ impl StreamHandler<Result<actix_http::ws::Message, ws::ProtocolError>> for Clien
                     }
                 };
                 match msg {
-                    WebsocketMessage::InitializeProtocol(init) => {
+                    ClientMessage::InitializeProtocol(init) => {
                         self.start_protocol(init, ctx);
                     }
-                    WebsocketMessage::FirstRoundResponse(response) => {
-                        self.first_round_response(response, ctx);
+                    ClientMessage::FirstRoundResponse(msg) => {
+                        self.first_round_response(msg, ctx);
                     }
-                    WebsocketMessage::SecondRoundResponse(response) => {
-                        self.second_round_response(response, ctx);
+                    ClientMessage::SecondRoundResponse(msg) => {
+                        self.second_round_response(msg, ctx);
                     }
                     _ => {
                         println!("Received unsupported WebsocketMessage variant: {:?}", msg);

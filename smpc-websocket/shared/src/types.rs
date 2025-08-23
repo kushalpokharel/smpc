@@ -1,14 +1,20 @@
 use kzen_paillier::BigInt;
 use serde::{Deserialize, Serialize};
 use actix::prelude::*;
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WebsocketMessage {
-    InitializeProtocol(InitializeProtocol),
-    FirstRoundResponse(UnicastMessage<FirstRoundResponse>),
-    SecondRoundResponse(UnicastMessage<SecondRoundResponse>),
-    Broadcast(BroadcastMessage<String>),
+    Unicast(UnicastMessage<Value>),
+    Broadcast(BroadcastMessage<Value>),
     Relayer(RelayerMessage<String>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ClientMessage{
+    InitializeProtocol(InitializeProtocol),
+    FirstRoundResponse(FirstRoundResponse),
+    SecondRoundResponse(SecondRoundResponse),
 }
 
 // Sent from server to the first  client to initialize the protocol. the sid will always be 0 in this msg type.
@@ -68,6 +74,10 @@ impl<T> UnicastMessage<T> {
 
   pub fn into_inner(self) -> T {
     self.data
+  }
+
+  pub fn get_value(&self) -> &T {
+    &self.data
   }
 }
 

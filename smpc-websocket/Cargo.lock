@@ -2130,6 +2130,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "awc",
+ "curv-kzen",
  "futures",
  "kzen-paillier",
  "serde",

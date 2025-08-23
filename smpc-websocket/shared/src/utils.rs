@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct EncodedCiphertextRepr<T> {
     #[serde(with = "kzen_paillier::serialize::bigint")]
     pub raw: BigInt,
-    pub _components: usize,
+    pub components: usize,
     _phantom: PhantomData<T>,
 }
 

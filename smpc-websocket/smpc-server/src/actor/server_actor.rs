@@ -1,6 +1,6 @@
 use std::arch::aarch64::uint32x4_t;
 use std::collections::HashMap;
-use crate::actor::server_message::{BroadcastMessage, InitializeParameters, RegisterClient, UnicastMessage};
+use crate::actor::server_message::{InitializeParameters, RegisterClient};
 use crate::errors::error_close::ErrorClose;
 
 use actix_codec::Framed;
@@ -20,18 +20,13 @@ use kzen_paillier::{KeyGeneration, Paillier};
 use awc::{BoxedSocket, Client};
 use crate::errors::websocket_error::WebsocketError;
 use crate::errors::server_error::ServerError;
-use shared::types::{WebsocketMessage, InitializeProtocol};
+use shared::types::{ClientMessage, InitializeProtocol, WebsocketMessage};
 
 #[derive(PartialEq)]
 enum State{
     ClientConnection, 
     FirstRound, 
     SecondRound
-}
-
-enum WebsocketMessages{
-    UnicastMessage(UnicastMessage<Value>),
-    BroadcastMessage(BroadcastMessage<Value>)
 }
 
 
@@ -63,22 +58,18 @@ impl ServerActor{
     }
 
     pub fn handle_websocket_message(&mut self, msg: WebsocketMessage, client_index: usize, ctx: &mut <Self as Actor>::Context) {
+        
         match msg {
-            WebsocketMessage::InitializeProtocol(init) => {
-                // Start the protocol by sending an initialization message or any other setup
-                println!("Client never sends initialize protocol message");
-            }
-            WebsocketMessage::FirstRoundResponse(response) => {
+            WebsocketMessage::Unicast(response) => {
+                let wmsg = response.get_value();
                 // Handle the first round response
-                println!("Received FirstRoundResponse from client {}: {:?}", client_index, response);
-                self.send_json(&response, response.to, ctx);
-                // Process the response as needed
+                println!("Received Unicast from client {}: {:?}", client_index, response);
+                self.send_json(&wmsg, response.to, ctx);
             }
-            WebsocketMessage::SecondRoundResponse(response) => {
+            WebsocketMessage::Broadcast(response) => {
                 // Handle the first round response
                 println!("Received SecondRound from client {}: {:?}", client_index, response);
-                self.send_json(&response, response.to, ctx);
-                // Process the response as needed
+                // send the response to all clients except the one broadcasting it.
             }
             _ => {
                 eprintln!("Received unexpected message type: {:?}", msg);
@@ -113,14 +104,14 @@ impl ServerActor{
 
     #[inline]
     fn write_raw(&mut self, client_index: usize, message: Message) {
-        eprintln!("Sending message to client {}: {:?} ", client_index + 1, message);
+        eprintln!("Sending message to client {}: {:?} ", client_index, message);
 
         // Get the sink, trapping any out of bound errors (Should NOT happen)
         if let Some(ref mut sinks) = self.sinks{
             let sink = sinks.get_mut(client_index);
             if sink.is_none() {
                 return eprintln!(
-                "Invalid collector {} (Num client = {})",
+                "Invalid client {} (Num client = {})",
                 client_index + 1,
                 self.total_clients
                 );
@@ -214,14 +205,14 @@ impl Handler<RegisterClient> for ServerActor {
             eprintln!("Cannot register client, server is not in ClientConnection state.");
             return;
         }
-        self.total_clients += 1;
         self.clients.insert(self.total_clients, msg.url.clone());
         println!("Registered client {} with URL: {}", self.total_clients, msg.url);
+        self.total_clients += 1;
         
         if self.total_clients == 1 && self.state == State::ClientConnection {
             println!("Here i am");
             //schedule a task to send a message to the first client after 120 seconds
-            ctx.run_later(std::time::Duration::from_secs(30), |act, ctx|{
+            ctx.run_later(std::time::Duration::from_secs(10), |act, ctx|{
                 println!("Sending InitializeParameters message to start the protocol.");
                 act.schedule_send(ctx, 0);
             });
@@ -246,7 +237,6 @@ impl Handler<InitializeParameters> for ServerActor {
             self.key_pair = Some(kp);
             let clients: Vec<(u32, String)> = self.clients.iter().map(|(&seq, url)| (seq, url.clone())).collect();
             // Spawn a future to connect to all clients, then send a message to self with the result
-            let myself = ctx.address();
             ctx.spawn(actix::fut::wrap_future(
                 async move {
                     let websockets = try_join_all(clients.into_iter().map(|(seq, url)| {
@@ -281,12 +271,12 @@ impl Handler<InitializeParameters> for ServerActor {
                             act.sinks = Some(sinks);
                             println!("Transitioned to FirstRound state.");
 
-                            let client_params: InitializeProtocol = InitializeProtocol{
+                            let client_params: ClientMessage = ClientMessage::InitializeProtocol((InitializeProtocol{
                                 bits_security: 2048,
                                 num_parties: act.total_clients as usize,
                                 sid: 0
 
-                            };
+                            }));
 
                             act.send_json(&client_params, 0, ctx);
                         }
