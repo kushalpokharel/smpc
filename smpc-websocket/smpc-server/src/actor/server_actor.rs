@@ -1,15 +1,11 @@
-use std::arch::aarch64::uint32x4_t;
 use std::collections::HashMap;
 use crate::actor::server_message::{InitializeParameters, RegisterClient};
 use crate::errors::error_close::ErrorClose;
 
 use actix_codec::Framed;
 use actix_web::web::Bytes;
-use futures::io::Sink;
 use futures::stream::{select_all, SplitSink};
 use serde::Serialize;
-use serde_json::value::Index;
-use serde_json::Value;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::prelude::*;
 use awc::error::WsProtocolError;
@@ -25,8 +21,7 @@ use shared::types::{ClientMessage, InitializeProtocol, WebsocketMessage};
 #[derive(PartialEq)]
 enum State{
     ClientConnection, 
-    FirstRound, 
-    SecondRound
+    FirstRound,
 }
 
 

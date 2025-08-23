@@ -60,30 +60,14 @@ impl ClientActor{
         println!("Private input chosen, {}", start_value);
         let encrypted_value = Paillier::encrypt(&kp.0, start_value);
         let encrypted_value_bigint = get_bigint_from_encoded_ciphertext(&encrypted_value);
-        
-        if init.sid == init.num_parties - 2 {
-            // if this is the second last client, send the SecondRoundResponse to the last client
-            let new_msg = SecondRoundResponse{
-                computed_value: encrypted_value_bigint,
-                num_parties: init.num_parties,
-                sid: init.sid + 1,
-                n_squared: kp.0.nn,
-                n: kp.0.n
-            };
-            self.send_unicast(init.sid, init.sid + 1, ClientMessage::SecondRoundResponse(new_msg), ctx);
-
-        }
-        else{
-            let new_msg = FirstRoundResponse{
-                computed_value: encrypted_value_bigint,
-                num_parties: init.num_parties,
-                sid: init.sid + 1,
-                n_squared:kp.0.nn,
-                n: kp.0.n
-            };
-            self.send_unicast(init.sid, init.sid+1, ClientMessage::FirstRoundResponse(new_msg), ctx);
-
-        }
+        let new_msg = FirstRoundResponse{
+            computed_value: encrypted_value_bigint,
+            num_parties: init.num_parties,
+            sid: init.sid + 1,
+            n_squared:kp.0.nn,
+            n: kp.0.n
+        };
+        self.send_unicast(init.sid, init.sid+1, ClientMessage::FirstRoundResponse(new_msg), ctx);
         
         
     }
@@ -113,7 +97,7 @@ impl ClientActor{
         println!("Random value chosen, {}", SETUP.random_value);
 
         let ct_raw = get_bigint_from_encoded_ciphertext(&ct);
-        BigInt::mod_inv(&ct_raw, &enc_key.n)
+        BigInt::mod_inv(&ct_raw, &enc_key.nn)
             .map(|inv| {
                 let new_ct = BigInt::mod_mul(&resp, &inv, &enc_key.nn);
                 // get_bigint_from_encoded_ciphertext(new)
@@ -139,16 +123,16 @@ impl ClientActor{
         let new_ct = BigInt::mod_pow(&computed_value, &BigInt::from(SETUP.private_input), &data.n_squared);
         println!("Private input chosen, {}", SETUP.private_input);
 
-        if data.sid == data.num_parties - 2 {
-            // if this is the second last client, send the SecondRoundResponse to the last client
+        if data.sid == data.num_parties - 1 {
+            // if this is the last client, send the SecondRoundResponse to itself so that second round can start
             let new_msg = SecondRoundResponse{
                 computed_value: new_ct,
                 num_parties: data.num_parties,
-                sid: data.sid + 1,
+                sid: data.sid ,
                 n_squared: data.n_squared,
                 n: data.n
             };
-            self.send_unicast(data.sid, data.sid + 1, ClientMessage::SecondRoundResponse(new_msg), ctx);
+            self.send_unicast(data.sid, data.sid, ClientMessage::SecondRoundResponse(new_msg), ctx);
 
         }
         else{

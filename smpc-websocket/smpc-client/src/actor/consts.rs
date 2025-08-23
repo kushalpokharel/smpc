@@ -5,7 +5,7 @@ pub struct Setup{
 }
 
 pub static SETUP: Setup = Setup {
-    port: 8081,
-    private_input: 10,
+    port: 8082,
+    private_input: 37,
     random_value: 7,
 };
