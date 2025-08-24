@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 
 use crate::actor::{server_actor::ServerActor, server_message::RegisterClient};
 
-pub async fn connect_websocket(
+pub async fn register_client(
     req:HttpRequest,
     data: web::Data<actix::Addr<ServerActor>>,
 ) -> Result<HttpResponse, actix_web::Error> {

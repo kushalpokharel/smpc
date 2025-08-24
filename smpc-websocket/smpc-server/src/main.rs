@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()>{
         App::new()
         .app_data(web::Data::new(server_addr.clone()))
         
-        .route("/", web::get().to(handlers::connect_websocket::connect_websocket))
+        .route("/", web::get().to(handlers::connect_websocket::register_client))
     });
     server.bind("127.0.0.1:8080")?
         .run()
