@@ -7,7 +7,7 @@ use serde_json::Value;
 pub enum WebsocketMessage {
     Unicast(UnicastMessage<Value>),
     Broadcast(BroadcastMessage<Value>),
-    Relayer(RelayerMessage<String>),
+    Relayer(RelayerMessage<Value>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]

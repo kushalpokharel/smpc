@@ -1,7 +1,6 @@
-use std::fmt::format;
 use std::str::FromStr;
 
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse};
 use awc::{ClientBuilder};
 use actix_http::header::{HeaderName, HeaderValue};
 use actix_http::Method;

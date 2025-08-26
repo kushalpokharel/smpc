@@ -66,6 +66,20 @@ impl ServerActor{
                 println!("Received SecondRound from client {}: {:?}", client_index, response);
                 // send the response to all clients except the one broadcasting it.
             }
+            WebsocketMessage::Relayer(response) =>{
+                println!("Got response from the first client. Not to forward but to indicate that the protocol is done");
+                println!("Final random decrypted value from the response: {}", response.data);
+                let reason = CloseReason::from(CloseCode::Normal);
+                self.close_all_websockets(&Some(reason));
+                
+                // reset the actor for potentially another round of SMPC
+                self.clients = HashMap::new();
+                self.state =State::ClientConnection;
+                self.total_clients = 0;
+                self.key_pair = None;
+                self.sinks = None;
+
+            }
             _ => {
                 eprintln!("Received unexpected message type: {:?}", msg);
             }
@@ -143,19 +157,19 @@ impl ServerActor{
 
     /// Send binary frame
     #[inline]
-    fn binary<B: Into<Bytes>>(&mut self, client_index: usize, data: B) {
+    fn _binary<B: Into<Bytes>>(&mut self, client_index: usize, data: B) {
         self.write_raw(client_index, Message::Binary(data.into()));
     }
 
     /// Send ping frame
     #[inline]
-    fn ping(&mut self, client_index: usize, message: &[u8]) {
+    fn _ping(&mut self, client_index: usize, message: &[u8]) {
         self.write_raw(client_index, Message::Ping(Bytes::copy_from_slice(message)));
     }
 
     /// Send pong frame
     #[inline]
-    fn pong(&mut self, client_index: usize, message: &[u8]) {
+    fn _pong(&mut self, client_index: usize, message: &[u8]) {
         self.write_raw(client_index, Message::Pong(Bytes::copy_from_slice(message)));
     }
 
@@ -314,6 +328,15 @@ impl StreamHandler<(u32, Result<Frame, WsProtocolError>)> for ServerActor{
                     }
                     Frame::Close(_) => {
                         println!("Client {} has closed the connection.", id);
+                        // if let Some(sinks) = &mut self.sinks {
+                        //     for sink in sinks.iter_mut().enumerate() {
+                        //         if sink.0 == id as usize {
+                        //             sink.1.close(); // close returns a future usually
+                        //             println!("Actually closed the connection");
+                        //         }
+                        //     }
+                        // }
+                        // if the reason for closing the connection is normal from one of the clients, it is due to the completion of the protocol
                         // Handle client disconnection if needed
                     }
                     _ => {

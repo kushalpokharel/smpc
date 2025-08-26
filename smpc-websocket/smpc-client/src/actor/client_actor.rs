@@ -4,7 +4,7 @@ use actix::{Actor, StreamHandler};
 use actix_web_actors::ws;
 use actix::ActorContext;
 use kzen_paillier::*;
-use shared::types::{ClientMessage, FirstRoundResponse, InitializeProtocol, SecondRoundResponse, UnicastMessage, WebsocketMessage};
+use shared::types::{ClientMessage, FirstRoundResponse, InitializeProtocol, RelayerMessage, SecondRoundResponse, UnicastMessage, WebsocketMessage};
 use crate::actor::consts::SETUP;
 use curv::arithmetic::{BigInt, Modulo};
 use shared::utils::{EncodedCiphertextRepr, get_bigint_from_encoded_ciphertext};
@@ -41,7 +41,7 @@ impl ClientActor{
         ctx.text(json_str);
     }
 
-    pub fn _send_json<T>(&self, msg: &T, ctx: &mut ws::WebsocketContext<Self>) where T: serde::Serialize {
+    pub fn send_json<T>(&self, msg: &T, ctx: &mut ws::WebsocketContext<Self>) where T: serde::Serialize {
         let json_str = serde_json::to_string(msg).unwrap_or_else(|e| {
             eprintln!("Failed to serialize message: {}", e);
             "".to_string()
@@ -49,6 +49,11 @@ impl ClientActor{
         ctx.text(json_str);
 
     }
+
+    pub fn send_relayer_msg(self: &ClientActor, relayer_msg:RelayerMessage<serde_json::Value>, ctx: &mut ws::WebsocketContext<Self>){
+        self.send_json(&WebsocketMessage::Relayer(relayer_msg), ctx);
+    }
+
 
     pub fn start_protocol(&mut self, init: InitializeProtocol,  ctx: &mut ws::WebsocketContext<Self>) {
         // Start the protocol by sending an initialization message or any other setup
@@ -83,7 +88,14 @@ impl ClientActor{
             if let Some(dec_key) = &self.decryption_key {
                 let rct = RawCiphertext::from(resp);
                 let decrypted_result = Paillier::decrypt(dec_key, &rct);
-                println!("Final decrypted result: {}", decrypted_result.0.into_owned());
+                let result = decrypted_result.0.into_owned();
+                println!("Final decrypted result: {}", result);
+                let result_val = serde_json::to_value(result).unwrap_or_else(|e|{
+                    println!("Failed to convert value to the json");
+                    serde_json::Value::Null
+                });
+                let relayer_msg = RelayerMessage::new(data.sid, result_val);
+                self.send_relayer_msg(relayer_msg, ctx);
             } else {
                 eprintln!("Decryption key not found for the first client");
             }
@@ -172,12 +184,6 @@ impl StreamHandler<Result<actix_http::ws::Message, ws::ProtocolError>> for Clien
                     }
                     ClientMessage::SecondRoundResponse(msg) => {
                         self.second_round_response(msg, ctx);
-                    }
-                    _ => {
-                        println!("Received unsupported WebsocketMessage variant: {:?}", msg);
-                        // Handle other message types as needed
-                        // For example, you could send a response back to the client
-                        ctx.text("Unsupported message type received");
                     }
 
                 }
